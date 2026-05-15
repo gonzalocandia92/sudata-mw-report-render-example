@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Reportes Power BI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-w: 240px;
+      --accent: #f5a800;
+      --bg-dark: #1e2330;
+      --bg-darker: #171c28;
+      --text: #e8eaf0;
+      --text-muted: #8b91a8;
+      --active-bg: #f5a800;
+      --active-text: #1e2330;
+    }
+
+    body {
+      display: flex;
+      height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: var(--sidebar-w);
+      background: var(--bg-darker);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      border-right: 1px solid #2a3045;
+    }
+
+    .logo {
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid #2a3045;
+    }
+    .logo img { height: 32px; }
+    .logo span {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      color: var(--accent);
+    }
+
+    .section-label {
+      padding: 20px 16px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    #report-list { list-style: none; flex: 1; }
+
+    #report-list li {
+      margin: 2px 8px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    #report-list li a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      border-radius: 8px;
+      transition: background .15s, color .15s;
+      cursor: pointer;
+    }
+    #report-list li a:hover { background: #2a3045; color: var(--text); }
+    #report-list li.active a {
+      background: var(--active-bg);
+      color: var(--active-text);
+      font-weight: 600;
+    }
+    #report-list li a svg { flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid #2a3045;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 0 20px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #2a3045;
+      gap: 12px;
+      background: var(--bg-darker);
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    #report-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: #f5a80022;
+      border: 1px solid #f5a80055;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    #report-badge.show { display: flex; }
+
+    #report-container {
+      flex: 1;
+      position: relative;
+      background: #f4f4f4;
+    }
+
+    .placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #999;
+      font-size: 14px;
+    }
+    .placeholder svg { opacity: .3; }
+
+    .spinner-wrap {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #f4f4f4;
+      flex-direction: column;
+      gap: 10px;
+      color: #666;
+      font-size: 13px;
+    }
+    .spinner-wrap.show { display: flex; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #ddd;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error-msg {
+      display: none;
+      position: absolute;
+      bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: #fee; border: 1px solid #fcc;
+      color: #900; padding: 10px 16px;
+      border-radius: 8px; font-size: 13px;
+      max-width: 480px; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<aside>
+  <div class="logo">
+    <span>&#9646; Reportes</span>
+  </div>
+  <div class="section-label">Disponibles</div>
+  <ul id="report-list">
+    <li><a><em style="color:#555;font-size:12px">Cargando…</em></a></li>
+  </ul>
+  <div class="sidebar-footer">Powered by Sudata</div>
+</aside>
+
+<main>
+  <header>
+    <h1>Reportes Power BI</h1>
+    <span id="report-badge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="12" width="4" height="10"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="2" width="4" height="20"/></svg>
+      <span id="badge-text"></span>
+    </span>
+  </header>
+
+  <div id="report-container">
+    <div class="placeholder">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="#aaa"><rect x="2" y="12" width="4" height="10"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="2" width="4" height="20"/></svg>
+      Seleccioná un reporte del menú lateral
+    </div>
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner"></div>
+      Cargando reporte…
+    </div>
+    <div id="error-msg"></div>
+  </div>
+</main>
+
+<script>
+  const models = window['powerbi-client']?.models;
+  let currentReport = null;
+
+  // Cargar lista de reportes
+  fetch('/api/reports')
+    .then(r => r.json())
+    .then(data => {
+      const ul = document.getElementById('report-list');
+      ul.innerHTML = '';
+      data.reports.forEach(rep => {
+        const li = document.createElement('li');
+        li.innerHTML = `<a>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="2" y="12" width="4" height="10"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="2" width="4" height="20"/>
+          </svg>
+          ${rep.name}
+        </a>`;
+        li.querySelector('a').onclick = () => loadReport(rep.id, rep.name, li);
+        ul.appendChild(li);
+      });
+    })
+    .catch(() => {
+      document.getElementById('report-list').innerHTML =
+        '<li><a style="color:#e55">Error al cargar reportes</a></li>';
+    });
+
+  function loadReport(id, name, liEl) {
+    // Marcar activo
+    document.querySelectorAll('#report-list li').forEach(l => l.classList.remove('active'));
+    liEl.classList.add('active');
+
+    // Badge
+    document.getElementById('badge-text').textContent = name;
+    document.getElementById('report-badge').classList.add('show');
+
+    // Spinner
+    const spinner = document.getElementById('spinner');
+    const errorMsg = document.getElementById('error-msg');
+    spinner.classList.add('show');
+    errorMsg.style.display = 'none';
+    document.querySelector('.placeholder').style.display = 'none';
+
+    // Limpiar reporte anterior
+    if (currentReport) {
+      powerbi.reset(document.getElementById('report-container'));
+      currentReport = null;
+    }
+
+    fetch(`/api/report-config?report_id=${id}`)
+      .then(r => r.json())
+      .then(cfg => {
+        const container = document.getElementById('report-container');
+        const config = {
+          type: 'report',
+          tokenType: models?.TokenType?.Aad ?? 0,
+          accessToken: cfg.accessToken,
+          embedUrl: cfg.embedUrl,
+          id: cfg.reportId,
+          settings: {
+            panes: { filters: { visible: false }, pageNavigation: { visible: true } },
+            bars: { statusBar: { visible: true } }
+          }
+        };
+        currentReport = powerbi.embed(container, config);
+        currentReport.on('loaded', () => spinner.classList.remove('show'));
+        currentReport.on('error', e => {
+          spinner.classList.remove('show');
+          errorMsg.textContent = 'Error: ' + (e.detail?.message || JSON.stringify(e.detail));
+          errorMsg.style.display = 'block';
+        });
+      })
+      .catch(err => {
+        spinner.classList.remove('show');
+        errorMsg.textContent = 'Error al obtener configuración: ' + err.message;
+        errorMsg.style.display = 'block';
+      });
+  }
+</script>
+</body>
+</html>
