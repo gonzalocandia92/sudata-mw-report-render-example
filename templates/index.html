@@ -352,8 +352,8 @@
     }
   }
 
-  /** Elimina el embed anterior y muestra el placeholder con un mensaje. */
-  function resetEmbed(msg) {
+  /** Elimina el embed anterior. */
+  function resetEmbed() {
     if (currentReport) {
       const pbiDiv = document.getElementById('pbi-embed');
       if (pbiDiv) powerbi.reset(pbiDiv);
@@ -383,7 +383,6 @@
     const container = document.getElementById('report-container');
     let pbiDiv = document.getElementById('pbi-embed');
     if (pbiDiv) {
-      if (currentReport) powerbi.reset(pbiDiv);
       pbiDiv.remove();
     }
     currentReport = null;
