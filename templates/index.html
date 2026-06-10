@@ -281,6 +281,14 @@
   let currentReportName = null;
   let currentFilterable = false;
 
+  const spinner = document.getElementById('spinner');
+  const errorMsg = document.getElementById('error-msg');
+  const placeholder = document.getElementById('placeholder');
+  const filterBar = document.getElementById('filter-bar');
+  const filterInput = document.getElementById('filter-input');
+  const badgeText = document.getElementById('badge-text');
+  const reportBadge = document.getElementById('report-badge');
+
   // Cargar lista de reportes
   fetch('/api/reports')
     .then(r => r.json())
@@ -295,11 +303,7 @@
           </svg>
           ${rep.name}
         </a>`;
-        li.querySelector('a').onclick = () => {
-          currentFilterable = !!rep.filterable;
-          currentReportName = rep.name;
-          loadReport(rep.id, rep.name, li);
-        };
+        li.querySelector('a').onclick = () => selectReport(rep.id, rep.name, !!rep.filterable, li);
         ul.appendChild(li);
       });
     })
@@ -310,57 +314,93 @@
 
   // Aplicar filtro
   document.getElementById('filter-btn').addEventListener('click', () => {
-    if (currentReportId !== null) {
-      const activeLi = document.querySelector('#report-list li.active');
-      loadReport(currentReportId, currentReportName, activeLi);
-    }
+    if (currentReportId !== null) embedReport();
   });
-  document.getElementById('filter-input').addEventListener('keydown', e => {
+  filterInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('filter-btn').click();
   });
 
-  function loadReport(id, name, liEl) {
+  /**
+   * Selecciona un reporte del sidebar.
+   * - Si es filtrable: muestra la barra de filtro y espera a que se aplique.
+   * - Si no es filtrable: inicia el embed inmediatamente.
+   */
+  function selectReport(id, name, filterable, liEl) {
     currentReportId = id;
+    currentReportName = name;
+    currentFilterable = filterable;
 
     // Marcar activo
     document.querySelectorAll('#report-list li').forEach(l => l.classList.remove('active'));
     if (liEl) liEl.classList.add('active');
 
     // Badge
-    document.getElementById('badge-text').textContent = name;
-    document.getElementById('report-badge').classList.add('show');
+    badgeText.textContent = name;
+    reportBadge.classList.add('show');
 
-    // Barra de filtro: visible sólo si el reporte es filtrable
-    const filterBar = document.getElementById('filter-bar');
-    if (currentFilterable) {
+    // Barra de filtro
+    if (filterable) {
       filterBar.classList.add('show');
+      filterInput.value = '';
+      // Limpiar reporte anterior y mostrar placeholder
+      resetEmbed();
+      showPlaceholder('Ingresá un filtro y hacé clic en Aplicar');
     } else {
       filterBar.classList.remove('show');
-      document.getElementById('filter-input').value = '';
+      filterInput.value = '';
+      embedReport();
     }
+  }
 
-    // Spinner
-    const spinner = document.getElementById('spinner');
-    const errorMsg = document.getElementById('error-msg');
-    spinner.classList.add('show');
-    errorMsg.style.display = 'none';
-    document.getElementById('placeholder').style.display = 'none';
-
-    // Limpiar reporte anterior
+  /** Elimina el embed anterior y muestra el placeholder con un mensaje. */
+  function resetEmbed(msg) {
     if (currentReport) {
-      powerbi.reset(document.getElementById('report-container'));
+      const pbiDiv = document.getElementById('pbi-embed');
+      if (pbiDiv) powerbi.reset(pbiDiv);
       currentReport = null;
     }
+    errorMsg.style.display = 'none';
+    spinner.classList.remove('show');
+  }
 
-    const filterValue = currentFilterable ? document.getElementById('filter-input').value.trim() : '';
-    const params = new URLSearchParams({ report_id: id });
+  function showPlaceholder(msg) {
+    placeholder.innerHTML = `
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="#DADADA">
+        <rect x="2" y="12" width="4" height="10"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="2" width="4" height="20"/>
+      </svg>
+      ${msg}`;
+    placeholder.style.display = 'flex';
+  }
+
+  /** Obtiene el token de embed y renderiza el reporte. Siempre crea un div limpio. */
+  function embedReport() {
+    if (currentReportId === null) return;
+
+    errorMsg.style.display = 'none';
+    placeholder.style.display = 'none';
+
+    // Recrear el div de embed para garantizar un contenedor limpio
+    const container = document.getElementById('report-container');
+    let pbiDiv = document.getElementById('pbi-embed');
+    if (pbiDiv) {
+      if (currentReport) powerbi.reset(pbiDiv);
+      pbiDiv.remove();
+    }
+    currentReport = null;
+    pbiDiv = document.createElement('div');
+    pbiDiv.id = 'pbi-embed';
+    pbiDiv.style.cssText = 'position:absolute;inset:0;';
+    container.appendChild(pbiDiv);
+
+    spinner.classList.add('show');
+
+    const filterValue = currentFilterable ? filterInput.value.trim() : '';
+    const params = new URLSearchParams({ report_id: currentReportId });
     if (filterValue) params.set('filter', filterValue);
-    const url = `/api/report-config?${params}`;
 
-    fetch(url)
+    fetch(`/api/report-config?${params}`)
       .then(r => r.json())
       .then(cfg => {
-        const container = document.getElementById('report-container');
         const config = {
           type: 'report',
           tokenType: models?.TokenType?.Aad ?? 0,
@@ -372,7 +412,7 @@
             bars: { statusBar: { visible: true } }
           }
         };
-        currentReport = powerbi.embed(container, config);
+        currentReport = powerbi.embed(pbiDiv, config);
         currentReport.on('loaded', () => spinner.classList.remove('show'));
         currentReport.on('error', e => {
           spinner.classList.remove('show');

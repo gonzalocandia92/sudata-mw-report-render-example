@@ -5,7 +5,7 @@ from flask import Flask, render_template, jsonify, request, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 
-API_BASE = "https://reports-test.sudata.co/private"
+API_BASE = os.environ.get("API_BASE", "https://reports-test.sudata.co/private")
 CLIENT_ID = os.environ.get("CLIENT_ID", "asd1")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "asd3")
 
