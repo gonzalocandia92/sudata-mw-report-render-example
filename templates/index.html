@@ -237,7 +237,7 @@
 
 <aside>
   <div class="logo">
-    <span>&#9646; Sudata</span>
+    <span><span aria-hidden="true">&#9646;</span> Sudata</span>
   </div>
   <div class="section-label">Reportes</div>
   <ul id="report-list">
@@ -278,6 +278,7 @@
   const models = window['powerbi-client']?.models;
   let currentReport = null;
   let currentReportId = null;
+  let currentReportName = null;
   let currentFilterable = false;
 
   // Cargar lista de reportes
@@ -296,6 +297,7 @@
         </a>`;
         li.querySelector('a').onclick = () => {
           currentFilterable = !!rep.filterable;
+          currentReportName = rep.name;
           loadReport(rep.id, rep.name, li);
         };
         ul.appendChild(li);
@@ -310,7 +312,7 @@
   document.getElementById('filter-btn').addEventListener('click', () => {
     if (currentReportId !== null) {
       const activeLi = document.querySelector('#report-list li.active');
-      loadReport(currentReportId, document.getElementById('badge-text').textContent, activeLi);
+      loadReport(currentReportId, currentReportName, activeLi);
     }
   });
   document.getElementById('filter-input').addEventListener('keydown', e => {
@@ -351,7 +353,9 @@
     }
 
     const filterValue = currentFilterable ? document.getElementById('filter-input').value.trim() : '';
-    const url = `/api/report-config?report_id=${id}` + (filterValue ? `&filter=${encodeURIComponent(filterValue)}` : '');
+    const params = new URLSearchParams({ report_id: id });
+    if (filterValue) params.set('filter', filterValue);
+    const url = `/api/report-config?${params}`;
 
     fetch(url)
       .then(r => r.json())
