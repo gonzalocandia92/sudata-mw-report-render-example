@@ -5,7 +5,7 @@ from flask import Flask, render_template, jsonify, request, session
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 
-API_BASE = "http://reports.sudata.co/private"
+API_BASE = os.environ.get("API_BASE", "https://reports-test.sudata.co/private")
 CLIENT_ID = os.environ.get("CLIENT_ID", "asd1")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "asd3")
 
@@ -35,6 +35,7 @@ def reports():
     r = requests.get(f"{API_BASE}/reports",
                      headers={"Authorization": f"Bearer {token}"}, timeout=10)
     r.raise_for_status()
+    print(r.json())
     return jsonify(r.json())
 
 
@@ -45,17 +46,25 @@ def report_config():
     Si el token de sudata vencio (401), se renueva y reintenta.
     """
     report_id = request.args.get("report_id")
+    filter_value = request.args.get("filter")
+    params = {"report_id": report_id}
+    if filter_value:
+        params["filter"] = filter_value
     token = get_token()
     r = requests.get(f"{API_BASE}/report-config",
-                     params={"report_id": report_id},
+                     params=params,
                      headers={"Authorization": f"Bearer {token}"}, timeout=10)
     if r.status_code == 401:
         session.pop("access_token", None)
         token = get_token()
         r = requests.get(f"{API_BASE}/report-config",
-                         params={"report_id": report_id},
+                         params=params,
                          headers={"Authorization": f"Bearer {token}"}, timeout=10)
     r.raise_for_status()
+    response_data = r.json()
+    if "accessToken" in response_data:
+        response_data["accessToken"] = "****"
+    print(response_data)
     return jsonify(r.json())
 
 

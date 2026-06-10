@@ -4,6 +4,68 @@ Guía para autenticar con la API de Sudata y renderizar reportes Power BI embebi
 
 ---
 
+## Diagrama de Arquitectura
+
+```mermaid
+flowchart LR
+
+    %% --- CLIENTE ---
+    subgraph Cliente
+        UI[Usuario / Frontend]
+    end
+
+    %% --- API ---
+    subgraph Backend API
+        LOGIN[POST /login]
+        REPORTS[GET /reports]
+        CONFIG[GET /report-config]
+    end
+
+    %% --- SERVICIOS ---
+    subgraph Power BI
+        PBI[Power BI Service]
+    end
+
+    %% --- FLUJO ---
+    UI -->|Credenciales| LOGIN
+    LOGIN -->|JWT Token| UI
+
+    UI -->|Bearer Token| REPORTS
+    REPORTS -->|Lista de reportes| UI
+
+    UI -->|report_id + Token| CONFIG
+    CONFIG -->|Genera Embed| PBI
+    PBI -->|Embed URL + Token| CONFIG
+    CONFIG -->|Configuración| UI
+
+    UI -->|Render Reporte| PBI
+```
+
+---
+
+## Descripción del flujo
+
+1. El usuario se autentica mediante `/login` y obtiene un **JWT**.
+2. Con el token, consulta `/reports` para obtener los reportes disponibles.
+3. Selecciona un reporte y solicita `/report-config`.
+4. El backend genera la configuración de embed consultando Power BI.
+5. El frontend renderiza el reporte utilizando `embedUrl` y `accessToken`.
+
+---
+
+## Componentes
+
+* **Cliente (Frontend)**
+  Interfaz de usuario y renderizado del reporte.
+
+* **Backend API**
+  Maneja autenticación, catálogo de reportes y generación de embed.
+
+* **Power BI Service**
+  Provee el reporte embebido con tokens seguros y temporales.
+
+
+
 ## Dos tokens
 
 La integración involucra dos tokens con ciclos de vida muy distintos.
@@ -43,7 +105,7 @@ El `access_token` resultante se usa como `Bearer` header en todos los endpoints 
 
 ### `GET /private/reports`
 
-Devuelve la lista de reportes disponibles para la empresa autenticada.
+Devuelve la lista de reportes disponibles para la empresa autenticada, incluyendo información sobre si cada reporte soporta filtros dinámicos.
 
 **Headers:**
 ```
@@ -56,17 +118,18 @@ Authorization: Bearer {access_token_de_sudata}
   "empresa_id": 3,
   "empresa_nombre": "Mi Empresa SA",
   "reports": [
-    { "id": 1, "name": "Reporte Ventas" },
-    { "id": 2, "name": "Reporte Inventarios" }
+    { "id": 1, "name": "Reporte Ventas", "filterable":true },
+    { "id": 2, "name": "Reporte Inventarios", "filterable":false }
   ]
 }
 ```
 
 ---
 
-### `GET /private/report-config?report_id={id}`
+### `GET /private/report-config?report_id={id}&filter={filter}`
 
 Devuelve la configuración necesaria para embeber un reporte específico. Incluye el token de Power BI de corta duración.
+*Filter es opcional
 
 **Headers:**
 ```
