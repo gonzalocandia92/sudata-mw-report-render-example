@@ -35,6 +35,7 @@ def reports():
     r = requests.get(f"{API_BASE}/reports",
                      headers={"Authorization": f"Bearer {token}"}, timeout=10)
     r.raise_for_status()
+    print(r.json())
     return jsonify(r.json())
 
 
@@ -60,6 +61,10 @@ def report_config():
                          params=params,
                          headers={"Authorization": f"Bearer {token}"}, timeout=10)
     r.raise_for_status()
+    response_data = r.json()
+    if "accessToken" in response_data:
+        response_data["accessToken"] = "****"
+    print(response_data)
     return jsonify(r.json())
 
 
