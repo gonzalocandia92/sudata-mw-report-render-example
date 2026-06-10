@@ -45,15 +45,19 @@ def report_config():
     Si el token de sudata vencio (401), se renueva y reintenta.
     """
     report_id = request.args.get("report_id")
+    filter_value = request.args.get("filter")
+    params = {"report_id": report_id}
+    if filter_value:
+        params["filter"] = filter_value
     token = get_token()
     r = requests.get(f"{API_BASE}/report-config",
-                     params={"report_id": report_id},
+                     params=params,
                      headers={"Authorization": f"Bearer {token}"}, timeout=10)
     if r.status_code == 401:
         session.pop("access_token", None)
         token = get_token()
         r = requests.get(f"{API_BASE}/report-config",
-                         params={"report_id": report_id},
+                         params=params,
                          headers={"Authorization": f"Bearer {token}"}, timeout=10)
     r.raise_for_status()
     return jsonify(r.json())
