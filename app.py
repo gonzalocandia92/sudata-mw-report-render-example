@@ -2,12 +2,30 @@ import os
 import requests
 from flask import Flask, render_template, jsonify, request, session
 
+def _load_env_file(path):
+    """Carga KEY=VALUE desde un .env sin pisar las variables ya definidas (sin dependencias extra)."""
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8-sig") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key, value = key.strip().removeprefix("export ").strip(), value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
+
+
+_load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 
-API_BASE = os.environ.get("API_BASE", "https://reports-test.sudata.co/private")
-CLIENT_ID = os.environ.get("CLIENT_ID", "asd1")
-CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "asd3")
+API_BASE = os.environ.get("API_BASE", "https://reports.sudata.co/private")
+CLIENT_ID = os.environ.get("CLIENT_ID", "TU_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "TU_CLIENT_SECRET")
 
 
 def get_token():
