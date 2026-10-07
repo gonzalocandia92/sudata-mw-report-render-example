@@ -135,6 +135,38 @@
     }
     #report-badge.show { display: flex; }
 
+    /* ── Acciones del reporte (restablecer / actualizar visuales) ── */
+    #actions {
+      display: none;
+      margin-left: auto;
+      gap: 8px;
+    }
+    #actions.show { display: flex; }
+    .action-btn {
+      padding: 5px 14px;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .action-btn:hover { background: var(--border); border-color: var(--accent); }
+    .action-btn:disabled { opacity: .5; cursor: default; }
+    .action-btn[hidden] { display: none; }
+
+    #info-msg {
+      display: none;
+      position: absolute;
+      bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: #efe; border: 1px solid #beb;
+      color: #264; padding: 10px 16px;
+      border-radius: 6px; font-size: 13px;
+      z-index: 20;
+    }
+
     /* ── Filter bar ── */
     #filter-bar {
       display: none;
@@ -253,6 +285,13 @@
       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="12" width="4" height="10"/><rect x="10" y="6" width="4" height="16"/><rect x="18" y="2" width="4" height="20"/></svg>
       <span id="badge-text"></span>
     </span>
+    <!-- Se muestran segun cfg.actions que devuelve /report-config -->
+    <div id="actions">
+      <button type="button" class="action-btn" id="btn-reset" hidden
+              title="Restablece los filtros, segmentaciones y otros cambios de vista">Restablecer</button>
+      <button type="button" class="action-btn" id="btn-refresh" hidden
+              title="Actualiza los objetos visuales con los datos mas recientes">Actualizar visuales</button>
+    </div>
   </header>
 
   <div id="filter-bar">
@@ -271,6 +310,7 @@
       Cargando reporte…
     </div>
     <div id="error-msg"></div>
+    <div id="info-msg"></div>
   </div>
 </main>
 
@@ -288,6 +328,56 @@
   const filterInput = document.getElementById('filter-input');
   const badgeText = document.getElementById('badge-text');
   const reportBadge = document.getElementById('report-badge');
+  const actionsBar = document.getElementById('actions');
+  const btnReset = document.getElementById('btn-reset');
+  const btnRefresh = document.getElementById('btn-refresh');
+  const infoMsg = document.getElementById('info-msg');
+
+  /** Muestra u oculta los botones segun cfg.actions (viene de /report-config). */
+  function setActions(actions) {
+    const a = actions || {};
+    btnReset.hidden = !a.resetToDefault;
+    btnRefresh.hidden = !a.refreshVisuals;
+    actionsBar.classList.toggle('show', !!(a.resetToDefault || a.refreshVisuals));
+  }
+
+  function showInfo(msg) {
+    infoMsg.textContent = msg;
+    infoMsg.style.display = 'block';
+    setTimeout(() => { infoMsg.style.display = 'none'; }, 3000);
+  }
+
+  /**
+   * Ejecuta una accion del SDK sobre el reporte actual, avisa el resultado y lo registra en la consola
+   * del navegador (F12 > Consola): lo que devolvio el SDK, cuanto tardo y el error completo si fallo.
+   */
+  async function runAction(btn, name, doAction, okMsg) {
+    if (!currentReport) return;
+    btn.disabled = true;
+    errorMsg.style.display = 'none';
+    const started = Date.now();
+    console.log(`[${name}] solicitado, reporte ${currentReportId} (${currentReportName})`);
+    try {
+      const result = await doAction(currentReport);
+      console.log(`[${name}] respuesta en ${Date.now() - started} ms:`,
+        result === undefined ? '(sin cuerpo: la promesa se resolvio correctamente)' : result);
+      showInfo(okMsg);
+    } catch (e) {
+      console.error(`[${name}] error en ${Date.now() - started} ms:`, e);
+      errorMsg.textContent = 'No se pudo completar la accion: ' + (e?.detail?.message || e?.message || JSON.stringify(e));
+      errorMsg.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Restablecer: requiere settings.persistentFiltersEnabled = true al cargar (viene en cfg.settings)
+  btnReset.addEventListener('click', () =>
+    runAction(btnReset, 'resetPersistentFilters', r => r.resetPersistentFilters(),
+              'Se restablecieron los valores predeterminados'));
+  // Actualizar visuales: report.refresh(); segun Microsoft solo trae datos nuevos en modelos DirectQuery
+  btnRefresh.addEventListener('click', () =>
+    runAction(btnRefresh, 'refresh', r => r.refresh(), 'Objetos visuales actualizados'));
 
   // Cargar lista de reportes
   fetch('/api/reports')
@@ -361,6 +451,7 @@
     }
     errorMsg.style.display = 'none';
     spinner.classList.remove('show');
+    setActions(null);
   }
 
   function showPlaceholder(msg) {
@@ -378,6 +469,7 @@
 
     errorMsg.style.display = 'none';
     placeholder.style.display = 'none';
+    setActions(null);
 
     // Recrear el div de embed para garantizar un contenedor limpio
     const container = document.getElementById('report-container');
@@ -408,11 +500,16 @@
           id: cfg.reportId,
           settings: {
             panes: { filters: { visible: false }, pageNavigation: { visible: true } },
-            bars: { statusBar: { visible: true } }
+            bars: { statusBar: { visible: true } },
+            // persistentFiltersEnabled solo puede definirse al cargar; "Restablecer" lo necesita
+            ...(cfg.settings || {})
           }
         };
         currentReport = powerbi.embed(pbiDiv, config);
-        currentReport.on('loaded', () => spinner.classList.remove('show'));
+        currentReport.on('loaded', () => {
+          spinner.classList.remove('show');
+          setActions(cfg.actions);
+        });
         currentReport.on('error', e => {
           spinner.classList.remove('show');
           errorMsg.textContent = 'Error: ' + (e.detail?.message || JSON.stringify(e.detail));
